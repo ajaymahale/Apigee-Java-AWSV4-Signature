@@ -194,8 +194,7 @@ public class AWSV4SignatureTest {
                 List<String> values = (List<String>) getHeaders().get(lowerName);
                 values.add(value.toString());
               }
-            }
-            else {
+            } else {
               List<String> values = new ArrayList<String>();
               values.add(value.toString());
               getHeaders().put(lowerName, values);
@@ -234,8 +233,7 @@ public class AWSV4SignatureTest {
             if (getQparams().containsKey(name)) {
               List<String> values = (List<String>) getQparams().get(name);
               values.add(value.toString());
-            }
-            else {
+            } else {
               List<String> values = new ArrayList<String>();
               values.add(value.toString());
               getQparams().put(name, values);
@@ -250,7 +248,6 @@ public class AWSV4SignatureTest {
             }
             return null;
           }
-
         }.getMockInstance();
 
     System.out.printf("=============================================\n");
@@ -350,5 +347,182 @@ public class AWSV4SignatureTest {
         msgCtxt.getVariable("awsv4sig_creq"), tc.canonicalRequest(), tc.getTestName());
     Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), tc.stringToSign(), tc.getTestName());
     Assert.assertEquals(message.getHeader("authorization"), tc.authorization(), tc.getTestName());
+  }
+
+  @Test()
+  public void testS3_getRange() {
+    // https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
+    final String testName = "testS3_getRange";
+    final String creq =
+        "GET\n"
+            + "/test.txt\n"
+            + "\n"
+            + "host:examplebucket.s3.amazonaws.com\n"
+            + "range:bytes=0-9\n"
+            + "x-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n"
+            + "x-amz-date:20130524T000000Z\n"
+            + "\n"
+            + "host;range;x-amz-content-sha256;x-amz-date\n"
+            + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+    final String sts =
+        "AWS4-HMAC-SHA256\n"
+            + "20130524T000000Z\n"
+            + "20130524/us-east-1/s3/aws4_request\n"
+            + "7344ae5b7ee6c3e7e6b0fe0640412a37625d1fbfff95c48bbb2dc43964946972";
+
+    final String authz =
+        "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41";
+
+    System.out.printf("%s\n", testName);
+    msgCtxt.setVariable("source", message);
+    message.setVariable("verb", "GET");
+    message.setVariable("path", "/test.txt");
+    message.setHeader("x-amz-date", "20130524T000000Z");
+    message.setHeader("host", "examplebucket.s3.amazonaws.com");
+    message.setHeader("Range", "bytes=0-9");
+
+    Properties props = new Properties();
+    // props.setProperty("debug", "true");
+    props.setProperty("debug", "true");
+    props.setProperty("sign-content-sha256", "true");
+    props.setProperty("source", "source");
+    props.setProperty("key", "AKIAIOSFODNN7EXAMPLE");
+    props.setProperty("secret", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+    props.setProperty("region", "us-east-1");
+    props.setProperty("service", "s3");
+    props.setProperty("endpoint", "https://" + message.getHeader("host"));
+
+    AWSV4Signature callout = new AWSV4Signature(props);
+
+    // execute and retrieve output
+    ExecutionResult actualResult = callout.execute(msgCtxt, exeCtxt);
+    ExecutionResult expectedResult = ExecutionResult.SUCCESS;
+
+    // check result and output
+    Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
+    Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
+    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
+    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), sts, testName);
+    Assert.assertEquals(message.getHeader("authorization"), authz, testName);
+  }
+
+  @Test()
+  public void testS3_put() {
+    // https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
+    final String testName = "testS3_put";
+    final String creq =
+        "PUT\n"
+            + "/test%24file.text\n"
+            + "\n"
+            + "date:Fri, 24 May 2013 00:00:00 GMT\n"
+            + "host:examplebucket.s3.amazonaws.com\n"
+            + "x-amz-content-sha256:44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072\n"
+            + "x-amz-date:20130524T000000Z\n"
+            + "x-amz-storage-class:REDUCED_REDUNDANCY\n"
+            + "\n"
+            + "date;host;x-amz-content-sha256;x-amz-date;x-amz-storage-class\n"
+            + "44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072";
+
+    final String sts =
+        "AWS4-HMAC-SHA256\n"
+            + "20130524T000000Z\n"
+            + "20130524/us-east-1/s3/aws4_request\n"
+            + "9e0e90d9c76de8fa5b200d8c849cd5b8dc7a3be3951ddb7f6a76b4158342019d";
+
+    final String authz =
+        "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=date;host;x-amz-content-sha256;x-amz-date;x-amz-storage-class, Signature=98ad721746da40c64f1a55b78f14c238d841ea1380cd77a1b5971af0ece108bd";
+
+    System.out.printf("%s\n", testName);
+    msgCtxt.setVariable("source", message);
+    message.setVariable("verb", "PUT");
+    message.setVariable("path", "/test$file.text");
+    message.setHeader("date", "Fri, 24 May 2013 00:00:00 GMT");
+    message.setHeader("x-amz-date", "20130524T000000Z");
+    message.setHeader("host", "examplebucket.s3.amazonaws.com");
+    message.setHeader("x-amz-storage-class", "REDUCED_REDUNDANCY");
+    message.setContent("Welcome to Amazon S3.");
+
+    Properties props = new Properties();
+    // props.setProperty("debug", "true");
+    props.setProperty("debug", "true");
+    props.setProperty("sign-content-sha256", "true");
+    props.setProperty("source", "source");
+    props.setProperty("key", "AKIAIOSFODNN7EXAMPLE");
+    props.setProperty("secret", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+    props.setProperty("region", "us-east-1");
+    props.setProperty("service", "s3");
+    props.setProperty("endpoint", "https://" + message.getHeader("host"));
+
+    AWSV4Signature callout = new AWSV4Signature(props);
+
+    // execute and retrieve output
+    ExecutionResult actualResult = callout.execute(msgCtxt, exeCtxt);
+    ExecutionResult expectedResult = ExecutionResult.SUCCESS;
+
+    // check result and output
+    Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
+    Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
+    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
+    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), sts, testName);
+    Assert.assertEquals(message.getHeader("authorization"), authz, testName);
+  }
+
+  @Test()
+  public void testS3_getQueryParams() {
+    // https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
+    final String testName = "testS3_getQueryParams";
+    final String creq =
+        "GET\n"
+            + "/\n"
+            + "max-keys=2&prefix=J\n"
+            + "host:examplebucket.s3.amazonaws.com\n"
+            + "x-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n"
+            + "x-amz-date:20130524T000000Z\n"
+            + "\n"
+            + "host;x-amz-content-sha256;x-amz-date\n"
+            + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+    final String sts =
+        "AWS4-HMAC-SHA256\n"
+            + "20130524T000000Z\n"
+            + "20130524/us-east-1/s3/aws4_request\n"
+            + "df57d21db20da04d7fa30298dd4488ba3a2b47ca3a489c74750e0f1e7df1b9b7";
+
+    final String authz =
+        "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7";
+
+    System.out.printf("%s\n", testName);
+    msgCtxt.setVariable("source", message);
+    message.setVariable("verb", "GET");
+    message.setVariable("path", "/");
+    message.setHeader("x-amz-date", "20130524T000000Z");
+    message.setHeader("host", "examplebucket.s3.amazonaws.com");
+    message.setQueryParam("max-keys", "2");
+    message.setQueryParam("prefix", "J");
+
+    Properties props = new Properties();
+    // props.setProperty("debug", "true");
+    props.setProperty("debug", "true");
+    props.setProperty("sign-content-sha256", "true");
+    props.setProperty("source", "source");
+    props.setProperty("key", "AKIAIOSFODNN7EXAMPLE");
+    props.setProperty("secret", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+    props.setProperty("region", "us-east-1");
+    props.setProperty("service", "s3");
+    props.setProperty("endpoint", "https://" + message.getHeader("host"));
+
+    AWSV4Signature callout = new AWSV4Signature(props);
+
+    // execute and retrieve output
+    ExecutionResult actualResult = callout.execute(msgCtxt, exeCtxt);
+    ExecutionResult expectedResult = ExecutionResult.SUCCESS;
+
+    // check result and output
+    Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
+    Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
+    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
+    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), sts, testName);
+    Assert.assertEquals(message.getHeader("authorization"), authz, testName);
   }
 }
