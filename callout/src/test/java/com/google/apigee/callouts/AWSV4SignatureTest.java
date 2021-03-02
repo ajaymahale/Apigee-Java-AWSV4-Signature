@@ -46,7 +46,7 @@ import org.testng.annotations.Test;
 
 public class AWSV4SignatureTest {
   private static final String testDataDir = "src/test/resources";
-  private static final boolean verbose = false;
+  private static final boolean verbose = true;
 
   static class Config {
     public static final String service = "service";
@@ -524,5 +524,90 @@ public class AWSV4SignatureTest {
     Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
     Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), sts, testName);
     Assert.assertEquals(message.getHeader("authorization"), authz, testName);
+  }
+
+  @Test()
+  public void testS3_no_source() {
+    // https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html#query-string-auth-v4-signing-example
+    final String testName = "testS3_no_source";
+    System.out.printf("%s\n", testName);
+
+    Properties props = new Properties();
+    // props.setProperty("source", "source"); // no source!
+    props.setProperty("key", "AKIAIOSFODNN7EXAMPLE");
+    props.setProperty("secret", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+    props.setProperty("region", "us-east-1");
+    props.setProperty("service", "s3");
+    props.setProperty("endpoint", "https://" + message.getHeader("host"));
+
+    AWSV4Signature callout = new AWSV4Signature(props);
+
+    // execute and retrieve output
+    ExecutionResult actualResult = callout.execute(msgCtxt, exeCtxt);
+    ExecutionResult expectedResult = ExecutionResult.ABORT;
+
+    // check result and output
+    Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
+    Assert.assertEquals(
+        msgCtxt.getVariable("awsv4sig_error"), "neither source nor verb is specified.", testName);
+    Assert.assertNull(msgCtxt.getVariable("awsv4sig_creq"), testName);
+    Assert.assertNull(msgCtxt.getVariable("awsv4sig_sts"), testName);
+    Assert.assertNull(message.getHeader("authorization"), testName);
+  }
+
+  @Test()
+  public void testS3_presigned_url() {
+    // https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html#query-string-auth-v4-signing-example
+    final String testName = "testS3_presigned_url";
+    final String creq =
+        "GET\n"
+            + "/test.txt\n"
+            + "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host\n"
+            + "host:examplebucket.s3.amazonaws.com\n"
+            + "\n"
+            + "host\n"
+            + "UNSIGNED-PAYLOAD";
+
+    final String sts =
+        "AWS4-HMAC-SHA256\n"
+            + "20130524T000000Z\n"
+            + "20130524/us-east-1/s3/aws4_request\n"
+            + "3bfa292879f6447bbcda7001decf97f4a54dc650c8942174ae0a9121cf58ad04";
+
+    final String signature = "aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404";
+
+    final String constructedUrl =
+        "https://examplebucket.s3.amazonaws.com/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404";
+
+    System.out.printf("%s\n", testName);
+
+    Properties props = new Properties();
+    // props.setProperty("debug", "true");
+    props.setProperty("debug", "true");
+    // props.setProperty("source", "source"); // no source!
+    props.setProperty("request-verb", "GET");
+    props.setProperty("request-path", "/test.txt");
+    props.setProperty("request-date", "20130524T000000Z");
+    props.setProperty("request-expiry", "86400");
+    props.setProperty("output", "my_output");
+
+    props.setProperty("key", "AKIAIOSFODNN7EXAMPLE");
+    props.setProperty("secret", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+    props.setProperty("region", "us-east-1");
+    props.setProperty("service", "s3");
+    props.setProperty("endpoint", "https://examplebucket.s3.amazonaws.com");
+
+    AWSV4Signature callout = new AWSV4Signature(props);
+
+    // execute and retrieve output
+    ExecutionResult actualResult = callout.execute(msgCtxt, exeCtxt);
+    ExecutionResult expectedResult = ExecutionResult.SUCCESS;
+
+    // check result and output
+    Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
+    Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
+    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
+    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), sts, testName);
+    Assert.assertEquals(msgCtxt.getVariable("my_output"), constructedUrl, testName);
   }
 }
