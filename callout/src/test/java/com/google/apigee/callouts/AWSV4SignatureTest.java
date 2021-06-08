@@ -312,6 +312,10 @@ public class AWSV4SignatureTest {
     return Arrays.stream(dirs).map(toTestCase).toArray(Object[][]::new);
   }
 
+  private String stsXformed() {
+    return ((String)msgCtxt.getVariable("awsv4sig_sts")).replaceAll("↵","\n");
+  }
+
   @Test
   public void testDataProviders() throws IOException {
     Assert.assertTrue(getDataForBatch1().length > 0);
@@ -345,7 +349,7 @@ public class AWSV4SignatureTest {
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), tc.getTestName());
     Assert.assertEquals(
         msgCtxt.getVariable("awsv4sig_creq"), tc.canonicalRequest(), tc.getTestName());
-    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), tc.stringToSign(), tc.getTestName());
+    Assert.assertEquals(stsXformed(), tc.stringToSign(), tc.getTestName());
     Assert.assertEquals(message.getHeader("authorization"), tc.authorization(), tc.getTestName());
   }
 
@@ -403,7 +407,7 @@ public class AWSV4SignatureTest {
     Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
     Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
-    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), sts, testName);
+    Assert.assertEquals(stsXformed(), sts, testName);
     Assert.assertEquals(message.getHeader("authorization"), authz, testName);
   }
 
@@ -464,7 +468,7 @@ public class AWSV4SignatureTest {
     Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
     Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
-    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), sts, testName);
+    Assert.assertEquals(stsXformed(), sts, testName);
     Assert.assertEquals(message.getHeader("authorization"), authz, testName);
   }
 
@@ -522,13 +526,13 @@ public class AWSV4SignatureTest {
     Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
     Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
-    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), sts, testName);
+    Assert.assertEquals(stsXformed(), sts, testName);
     Assert.assertEquals(message.getHeader("authorization"), authz, testName);
   }
 
   @Test()
   public void testS3_no_source() {
-    // https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-query-string-auth.html#query-string-auth-v4-signing-example
+
     final String testName = "testS3_no_source";
     System.out.printf("%s\n", testName);
 
@@ -607,7 +611,7 @@ public class AWSV4SignatureTest {
     Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
     Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
-    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_sts"), sts, testName);
+    Assert.assertEquals(stsXformed(), sts, testName);
     Assert.assertEquals(msgCtxt.getVariable("my_output"), constructedUrl, testName);
   }
 }
