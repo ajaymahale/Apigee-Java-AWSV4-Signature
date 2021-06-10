@@ -312,8 +312,8 @@ public class AWSV4SignatureTest {
     return Arrays.stream(dirs).map(toTestCase).toArray(Object[][]::new);
   }
 
-  private String stsXformed() {
-    return ((String)msgCtxt.getVariable("awsv4sig_sts")).replaceAll("↵","\n");
+  private String xform(String suffix) {
+    return ((String)msgCtxt.getVariable("awsv4sig_" + suffix)).replaceAll("↵","\n");
   }
 
   @Test
@@ -347,9 +347,8 @@ public class AWSV4SignatureTest {
     // check result and output
     Assert.assertEquals(actualResult, expectedResult, tc.getTestName() + " result not as expected");
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), tc.getTestName());
-    Assert.assertEquals(
-        msgCtxt.getVariable("awsv4sig_creq"), tc.canonicalRequest(), tc.getTestName());
-    Assert.assertEquals(stsXformed(), tc.stringToSign(), tc.getTestName());
+    Assert.assertEquals(xform("creq"), tc.canonicalRequest(), tc.getTestName());
+    Assert.assertEquals(xform("sts"), tc.stringToSign(), tc.getTestName());
     Assert.assertEquals(message.getHeader("authorization"), tc.authorization(), tc.getTestName());
   }
 
@@ -406,8 +405,8 @@ public class AWSV4SignatureTest {
     // check result and output
     Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
-    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
-    Assert.assertEquals(stsXformed(), sts, testName);
+    Assert.assertEquals(xform("creq"), creq, testName);
+    Assert.assertEquals(xform("sts"), sts, testName);
     Assert.assertEquals(message.getHeader("authorization"), authz, testName);
   }
 
@@ -467,8 +466,8 @@ public class AWSV4SignatureTest {
     // check result and output
     Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
-    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
-    Assert.assertEquals(stsXformed(), sts, testName);
+    Assert.assertEquals(xform("creq"), creq, testName);
+    Assert.assertEquals(xform("sts"), sts, testName);
     Assert.assertEquals(message.getHeader("authorization"), authz, testName);
   }
 
@@ -525,8 +524,8 @@ public class AWSV4SignatureTest {
     // check result and output
     Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
-    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
-    Assert.assertEquals(stsXformed(), sts, testName);
+    Assert.assertEquals(xform("creq"), creq, testName);
+    Assert.assertEquals(xform("sts"), sts, testName);
     Assert.assertEquals(message.getHeader("authorization"), authz, testName);
   }
 
@@ -610,8 +609,66 @@ public class AWSV4SignatureTest {
     // check result and output
     Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
     Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
-    Assert.assertEquals(msgCtxt.getVariable("awsv4sig_creq"), creq, testName);
-    Assert.assertEquals(stsXformed(), sts, testName);
+    Assert.assertEquals(xform("creq"), creq, testName);
+    Assert.assertEquals(xform("sts"), sts, testName);
     Assert.assertEquals(msgCtxt.getVariable("my_output"), constructedUrl, testName);
   }
+
+  @Test()
+  public void post_insure_trailing_slash() {
+    final String testName = "post_insure_trailing_slash";
+    final String expectedCreq =
+        "POST\n"
+            + "/v1/LookupUser/\n"
+            + "\n"
+            + "content-type:application/json\n"
+            + "host:stage.q2api.com\n"
+            + "x-amz-content-sha256:902886a3ffe631cba0d08501244ba1edf18b378923d4ef9c4b59d671307b3d5b\n"
+            + "x-amz-date:20210609T065036Z\n"
+            + "x-api-key:pq8v6qmzy69zhJu2FBAls9Jrz6jUK76y2qa9wN0j\n"
+            + "\n"
+            + "content-type;host;x-amz-content-sha256;x-amz-date;x-api-key\n"
+            + "902886a3ffe631cba0d08501244ba1edf18b378923d4ef9c4b59d671307b3d5b";
+
+    final String expectedSts =
+        "AWS4-HMAC-SHA256\n"
+            + "20210609T065036Z\n"
+            + "20210609/us-west-2/execute-api/aws4_request\n"
+            + "5ad1400e434b6b4927c50818df7a3a04969b3fb7a1e3638adbfdc3365a40f3f4";
+
+    System.out.printf("%s\n", testName);
+    msgCtxt.setVariable("source", message);
+    message.setVariable("verb", "POST");
+    message.setVariable("path", "/v1/LookupUser");
+    message.setHeader("content-type", "application/json");
+    message.setHeader("x-api-key","pq8v6qmzy69zhJu2FBAls9Jrz6jUK76y2qa9wN0j");
+    message.setHeader("x-amz-date", "20210609T065036Z");
+    message.setHeader("host", "stage.q2api.com");
+    message.setContent("{ \"foo\" : \"bar\" }");
+
+    Properties props = new Properties();
+    // props.setProperty("debug", "true");
+    props.setProperty("debug", "true");
+    props.setProperty("sign-content-sha256", "true");
+    props.setProperty("insure-trailing-slash", "true");
+    props.setProperty("source", "source");
+    props.setProperty("key", "AKIAIOSFODNN7EXAMPLE");
+    props.setProperty("secret", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
+    props.setProperty("region", "us-west-2");
+    props.setProperty("service", "execute-api");
+    props.setProperty("endpoint", "https://" + message.getHeader("host"));
+
+    AWSV4Signature callout = new AWSV4Signature(props);
+
+    // execute and retrieve output
+    ExecutionResult actualResult = callout.execute(msgCtxt, exeCtxt);
+    ExecutionResult expectedResult = ExecutionResult.SUCCESS;
+
+    // check result and output
+    Assert.assertEquals(actualResult, expectedResult, testName + " result not as expected");
+    Assert.assertNull(msgCtxt.getVariable("awsv4sig_error"), testName);
+    Assert.assertEquals(xform("creq"), expectedCreq, testName);
+    Assert.assertEquals(xform("sts"), expectedSts, testName);
+  }
+
 }
